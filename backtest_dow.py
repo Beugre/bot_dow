@@ -117,42 +117,42 @@ class BacktestEngine:
         """
         Récupère les données historiques H1
         """
-        logger.info(f"📥 Téléchargement {pair} en H1...")
+        logger.info(f"📥 Téléchargement {pair} en H4...")
 
         start_ts = int(datetime.strptime(self.start_date, "%Y-%m-%d").timestamp() * 1000)
         end_ts = int(datetime.strptime(self.end_date, "%Y-%m-%d").timestamp() * 1000)
 
-        all_h1 = []
+        all_h4 = []
         current_ts = start_ts
 
         while current_ts < end_ts:
             try:
-                ohlcv = self.exchange.fetch_ohlcv(pair, "1h", since=current_ts, limit=1000)
+                ohlcv = self.exchange.fetch_ohlcv(pair, "4h", since=current_ts, limit=1000)
 
                 if not ohlcv:
                     break
 
-                all_h1.extend(ohlcv)
-                current_ts = ohlcv[-1][0] + 3600000
+                all_h4.extend(ohlcv)
+                current_ts = ohlcv[-1][0] + 14400000  # +4h en ms
 
-                logger.info(f"   H1: {len(all_h1)} bougies")
+                logger.info(f"   H4: {len(all_h4)} bougies")
             except Exception as e:
-                logger.error(f"Erreur fetch H1: {e}")
+                logger.error(f"Erreur fetch H4: {e}")
                 break
 
-        if not all_h1:
+        if not all_h4:
             return pd.DataFrame(
                 columns=["timestamp", "open", "high", "low", "close", "volume", "datetime"]
             )
 
-        df_h1 = pd.DataFrame(
-            all_h1,
+        df_h4 = pd.DataFrame(
+            all_h4,
             columns=["timestamp", "open", "high", "low", "close", "volume"],
         )
-        df_h1["datetime"] = pd.to_datetime(df_h1["timestamp"], unit="ms")
+        df_h4["datetime"] = pd.to_datetime(df_h4["timestamp"], unit="ms")
 
-        logger.info(f"✅ {pair}: {len(df_h1)} H1 chargées")
-        return df_h1
+        logger.info(f"✅ {pair}: {len(df_h4)} H4 chargées")
+        return df_h4
 
     # ------------------------------------------------------------------ #
     # Boucle principale
@@ -162,7 +162,7 @@ class BacktestEngine:
         Execute le backtest complet (H1)
         """
         logger.info("=" * 70)
-        logger.info("🚀 BACKTEST DOW THEORY (H1)")
+        logger.info("🚀 BACKTEST DOW THEORY (H4)")
         logger.info(f"📅 Période: {self.start_date} → {self.end_date}")
         logger.info(f"💰 Capital initial: {self.initial_capital} USDC")
         logger.info(f"📊 Paires: {', '.join(self.pairs)}")
@@ -184,7 +184,7 @@ class BacktestEngine:
             logger.error("❌ Aucune donnée chargée")
             return {}
 
-        logger.info("\n🔄 Simulation des trades H1...")
+        logger.info("\n🔄 Simulation des trades H4...")
 
         # Bornes communes aux paires
         min_date = max(data["datetime"].min() for data in historical_data.values())
@@ -192,15 +192,15 @@ class BacktestEngine:
 
         logger.info(f"📅 Simulation: {min_date} → {max_date}")
 
-        lookback_hours = 600
+        lookback_hours = 600 * 4  # 600 bougies H4 = 2400h = 100 jours
         current_time = min_date + timedelta(hours=lookback_hours)
 
-        logger.info(f"⏭️ Démarrage simulation après {lookback_hours}h de lookback : {current_time}")
+        logger.info(f"⏭️ Démarrage simulation après {lookback_hours // 4} bougies H4 de lookback : {current_time}")
 
-        hour_count = 0
+        h4_count = 0
 
         while current_time <= max_date:
-            hour_count += 1
+            h4_count += 1
 
             # Mise à jour des positions ouvertes
             self._update_positions(current_time, historical_data)
@@ -211,8 +211,8 @@ class BacktestEngine:
                     continue
                 self._check_entry_signal(pair, current_time, historical_data[pair])
 
-            # Enregistrer l'équity une fois par jour
-            if hour_count % 24 == 0:
+            # Enregistrer l'équity une fois par jour (toutes les 6 bougies H4)
+            if h4_count % 6 == 0:
                 self.equity_curve.append(
                     {
                         "datetime": current_time,
@@ -221,7 +221,7 @@ class BacktestEngine:
                     }
                 )
 
-            current_time += timedelta(hours=1)
+            current_time += timedelta(hours=4)
 
         results = self._calculate_metrics()
         self._print_summary(results)
@@ -734,7 +734,7 @@ class BacktestEngine:
         df = pd.DataFrame(self.trades)
 
         fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-        fig.suptitle("Résultats Backtest Dow Theory (H1)", fontsize=16, fontweight="bold")
+        fig.suptitle("Résultats Backtest Dow Theory (H4)", fontsize=16, fontweight="bold")
 
         # Equity curve
         equity = [self.initial_capital]

@@ -1,5 +1,5 @@
 """
-Configuration pour le bot Dow Theory / Market Structure — Optimisé H1
+"""Configuration pour le bot Dow Theory / Market Structure — Optimisé H4
 """
 import os
 from dotenv import load_dotenv
@@ -37,34 +37,34 @@ PAIRS = [
 # ============================================================================
 # TIMEFRAMES
 # ============================================================================
-TIMEFRAME_EXECUTION = "1h"     # Timeframe principal
-TIMEFRAME_MACRO = "1h"         # Macro bias en H1 également
+TIMEFRAME_EXECUTION = "4h"     # Timeframe principal
+TIMEFRAME_MACRO = "4h"         # Macro bias en H4 également
 
 # Nombre de bougies
-CANDLES_H1 = 1000   # Backtest ~42 jours par fetch
-CANDLES_H4 = 6000   # Laisser pour compatibilité si besoin d'H4
+CANDLES_H1 = 1000   # Pour compatibilité (non utilisé en H4)
+CANDLES_H4 = 6000   # Backtest ~1000 jours (2.7 ans)
 
 # ============================================================================
-# 🎯 DÉTECTION DES SWINGS — VERSION OPTIMISÉE POUR H1
+# 🎯 DÉTECTION DES SWINGS — VERSION OPTIMISÉE POUR H4
 # ============================================================================
 
-# Nombre de bougies de chaque côté pour valider pivot (6 → optimum H1)
-SWING_LOOKBACK = 6
+# Nombre de bougies de chaque côté pour valider pivot (2 → optimum H4)
+SWING_LOOKBACK = 2
 
-# Taille minimale du swing (%). H1 = swings naturels ~0.3% à 1%.
-MIN_SWING_SIZE_PCT = 0.35     # (au lieu de 1.2%)
+# Taille minimale du swing (%). H4 = swings plus larges ~1% à 3%.
+MIN_SWING_SIZE_PCT = 1.0
 
 # Distance minimale entre swings du même type (évite micro-bruits)
-MIN_SWING_DISTANCE_PCT = 0.35 # (au lieu de 1.2%)
+MIN_SWING_DISTANCE_PCT = 1.0
 
-# Confirmation du pivot
-SWING_CONFIRMATION_CANDLES = 1  # (au lieu de 2)
+# Confirmation du pivot (plus large en H4)
+SWING_CONFIRMATION_CANDLES = 2
 
 # ============================================================================
-# 🔥 FILTRE ANTI-RANGE (H1)
+# 🔥 FILTRE ANTI-RANGE (H4)
 # ============================================================================
-# Range minimal sur 20 bougies H1. 1% était trop strict → ici optimum.
-RANGE_MIN_PCT = 0.45
+# Range minimal sur 20 bougies H4. H4 = ranges plus larges.
+RANGE_MIN_PCT = 1.5
 
 # ============================================================================
 # MONEY MANAGEMENT
@@ -74,22 +74,22 @@ MAX_OPEN_TRADES = 3            # Max trades en même temps
 MAX_TRADES_PER_PAIR = 1        # 1 trade par paire
 MAX_TRADES_PER_STRUCTURE = 1    # Empêche les doublons sur la même structure
 
-# Stops adaptés H1
-MIN_STOP_PCT = 0.25            # Min = 0.25% (avant 1.0%)
-MAX_STOP_PCT = 5.0             # Max = 5% (avant 10%)
+# Stops adaptés H4 (plus larges)
+MIN_STOP_PCT = 1.0             # Min = 1% pour H4
+MAX_STOP_PCT = 10.0            # Max = 10% pour H4
 
 # ============================================================================
-# ZERO RISK & TRAILING
+# ZERO RISK & TRAILING (H4 - plus doux)
 # ============================================================================
-TRIGGER_ZERO_R = 1.0   # Active Zero Risk à +1R
-LOCK_PROFIT_R = 0.0    # Lock sur entry_price (zero risk pur)
+TRIGGER_ZERO_R = 1.5   # Active Zero Risk à +1.5R (plus patient en H4)
+LOCK_PROFIT_R = 0.5    # Lock à +0.5R (laisse respirer)
 
 TRAILING_ENABLED = True
 TRAILING_STEPS = [
-    (1.5, 0.5),    # +1.5R → SL à +0.5R
-    (2.5, 1.0),    # +2.5R → SL à +1R
-    (3.5, 2.0),    # +3.5R → SL à +2R
+    (2.0, 0.5),    # +2R   → SL à +0.5R
+    (3.0, 1.5),    # +3R   → SL à +1.5R
     (4.0, 2.5),    # +4R   → SL à +2.5R
+    (5.0, 3.5),    # +5R   → SL à +3.5R
 ]
 
 # ============================================================================

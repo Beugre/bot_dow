@@ -1,5 +1,5 @@
 """
-Analyse de la structure de marché (Market Structure) et génération de signaux — Timeframe H1
+Analyse de la structure de marché (Market Structure) et génération de signaux — Timeframe H4
 """
 
 import pandas as pd
@@ -12,7 +12,7 @@ import logging
 
 class MarketStructure:
     """
-    Gère l'analyse complète de la structure de marché en H1
+    Gère l'analyse complète de la structure de marché en H4
     """
     
     def __init__(self):
@@ -31,13 +31,13 @@ class MarketStructure:
             - Sinon → NEUTRAL
         """
 
-        if len(df_h1) < config.SWING_LOOKBACK:
+if len(df_h4) < config.SWING_LOOKBACK:
             return "NEUTRAL"
-        
-        swings_h1 = self.swing_detector.detect_swings(df_h1)
-        swings_h1 = self.swing_detector.classify_swings(swings_h1)
-        
-        swings_major = swings_h1[-3:] if len(swings_h1) >= 3 else swings_h1
+
+        swings_h4 = self.swing_detector.detect_swings(df_h4)
+        swings_h4 = self.swing_detector.classify_swings(swings_h4)
+
+        swings_major = swings_h4[-3:] if len(swings_h4) >= 3 else swings_h4
         
         if len(swings_major) < 2:
             return "NEUTRAL"
@@ -56,7 +56,7 @@ class MarketStructure:
                 bearish += 1
         
         # Logging debug
-        self.logger.debug(f"[MACRO H1] swings={len(swings_major)}, bullish={bullish}, bearish={bearish}")
+        self.logger.debug(f"[MACRO H4] swings={len(swings_major)}, bullish={bullish}, bearish={bearish}")
         
         if bullish >= 2:
             return "BULLISH"
@@ -87,7 +87,7 @@ class MarketStructure:
         
         structure = self.swing_detector.get_structure_summary(swings)
 
-        # 🔥 PATCH ANTI-SPAM: Identifiant unique de structure avec ARRONDI (évite micro-variations H1)
+        # 🔥 PATCH ANTI-SPAM: Identifiant unique de structure avec ARRONDI (évite micro-variations H4)
         structure_id = None
         if trend == "UPTREND" and last_hh and last_hl:
             # Arrondir à 1 décimale pour éviter que 26850.12 vs 26850.55 créent 2 IDs différents
@@ -106,28 +106,28 @@ class MarketStructure:
             "last_LL": last_ll,
             "structure": structure,
             "structure_id": structure_id,
-            "df_h1": df_h1   # ❗ Le backtest lit maintenant df_h1, cohérent avec tout H1
+            "df_h4": df_h4   # ❗ Timeframe H4
         }
 
     # ----------------------------------------------------------------------
-    # 🔥 BUY SIGNAL (H1)
+    # 🔥 BUY SIGNAL (H4)
     # ----------------------------------------------------------------------
     def check_buy_signal(self, analysis: Dict) -> Tuple[bool, Optional[float], Optional[Dict]]:
 
-        df_h1 = analysis.get("df_h1")
+        df_h4 = analysis.get("df_h4")
 
         # Anti-range — range trop étroit = pas de tendance
-        if df_h1 is not None and len(df_h1) >= 20:
-            recent = df_h1.tail(20)
+        if df_h4 is not None and len(df_h4) >= 20:
+            recent = df_h4.tail(20)
             range_pct = (recent["high"].max() - recent["low"].min()) / recent["close"].iloc[-1] * 100
             if range_pct < config.RANGE_MIN_PCT:
-                return False, None, {"reason": f"Range H1 trop étroit ({range_pct:.2f}% < {config.RANGE_MIN_PCT}%)"}
+                return False, None, {"reason": f"Range H4 trop étroit ({range_pct:.2f}% < {config.RANGE_MIN_PCT}%)"}
 
         # Momentum minimal
-        if len(df_h1) >= 3:
-            r = df_h1.tail(3)
+        if len(df_h4) >= 3:
+            r = df_h4.tail(3)
             momentum = (r["high"].max() - r["low"].min()) / r["close"].iloc[-1] * 100
-            if momentum < 0.25:
+            if momentum < 0.5:  # H4 = momentum plus large
                 return False, None, {"reason": f"Momentum trop faible ({momentum:.2f}%)"}
 
         # Filtre macro
@@ -198,16 +198,16 @@ class MarketStructure:
         }
 
     # ----------------------------------------------------------------------
-    # 🔥 SELL SIGNAL (H1)
+    # 🔥 SELL SIGNAL (H4)
     # ----------------------------------------------------------------------
     def check_sell_signal(self, analysis: Dict) -> Tuple[bool, Optional[float], Optional[Dict]]:
 
-        df_h1 = analysis.get("df_h1")
+        df_h4 = analysis.get("df_h4")
 
-        if len(df_h1) >= 3:
-            r = df_h1.tail(3)
+        if len(df_h4) >= 3:
+            r = df_h4.tail(3)
             momentum = (r["high"].max() - r["low"].min()) / r["close"].iloc[-1] * 100
-            if momentum < 0.35:
+            if momentum < 0.5:  # H4 = momentum plus large
                 return False, None, {"reason": f"Momentum insuffisant ({momentum:.2f}%)"}
 
         if analysis["macro_bias"] != "BEARISH":
