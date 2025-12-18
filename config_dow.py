@@ -1,5 +1,5 @@
 """
-"""Configuration pour le bot Dow Theory / Market Structure — Optimisé H4
+Configuration pour le bot Dow Theory / Market Structure — Optimisé H4
 """
 import os
 from dotenv import load_dotenv
