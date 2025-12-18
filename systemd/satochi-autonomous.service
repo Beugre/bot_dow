@@ -1,0 +1,27 @@
+[Unit]
+Description=Satochi Autonomous Trading Bot v3.1 avec OCO
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/satochi_bot
+Environment=PATH=/opt/miniconda3/envs/satochi_bot/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/opt/satochi_bot/.env
+ExecStart=/opt/miniconda3/envs/satochi_bot/bin/python /opt/satochi_bot/run_satochi.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Limites de ressources
+LimitNOFILE=65536
+MemoryMax=2G
+
+# Variables d'environnement
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=Europe/Paris
+
+[Install]
+WantedBy=multi-user.target
