@@ -79,17 +79,16 @@ MIN_STOP_PCT = 1.0             # Min = 1% pour H4
 MAX_STOP_PCT = 10.0            # Max = 10% pour H4
 
 # ============================================================================
-# ZERO RISK & TRAILING (H4 - plus doux)
+# ZERO RISK & TRAILING (H4 - laisse courir les tendances)
 # ============================================================================
-TRIGGER_ZERO_R = 1.5   # Active Zero Risk à +1.5R (plus patient en H4)
-LOCK_PROFIT_R = 0.5    # Lock à +0.5R (laisse respirer)
+TRIGGER_ZERO_R = 2.0   # Active Zero Risk à +2.0R (Dow Theory doit respirer)
+LOCK_PROFIT_R = 1.0    # Lock à +1.0R (sécurise mais laisse de la marge)
 
 TRAILING_ENABLED = True
 TRAILING_STEPS = [
-    (2.0, 0.5),    # +2R   → SL à +0.5R
-    (3.0, 1.5),    # +3R   → SL à +1.5R
-    (4.0, 2.5),    # +4R   → SL à +2.5R
-    (5.0, 3.5),    # +5R   → SL à +3.5R
+    (3.0, 1.0),    # +3R   → SL à +1R
+    (4.0, 2.0),    # +4R   → SL à +2R
+    (6.0, 3.5),    # +6R   → SL à +3.5R
 ]
 
 # ============================================================================
@@ -100,9 +99,9 @@ MAX_TOTAL_RISK_PCT = 6.0  # Max 6% du capital à risque total
 # ============================================================================
 # FRAIS & SLIPPAGE (Backtest)
 # ============================================================================
-TAKER_FEE = 0.0004
-MAKER_FEE = 0.0002
-SLIPPAGE_PCT = 0.05  # 0.05% de slippage par défaut
+TAKER_FEE = 0.0004  # 0.04%
+MAKER_FEE = 0.0002  # 0.02%
+SLIPPAGE_PCT = 0.08  # 0.08% — réaliste pour BTC/ETH en H4 (alts = 0.1-0.2%)
 
 # ============================================================================
 # PARAMÈTRES D’EXÉCUTION

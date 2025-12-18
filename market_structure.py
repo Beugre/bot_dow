@@ -20,18 +20,18 @@ class MarketStructure:
         self.logger = logging.getLogger(__name__)
 
     # ----------------------------------------------------------------------
-    # 🔥 MACRO BIAS (H1)
+    # 🔥 MACRO BIAS (H4)
     # ----------------------------------------------------------------------
-    def get_macro_bias(self, df_h1: pd.DataFrame, current_price: float) -> str:
+    def get_macro_bias(self, df_h4: pd.DataFrame, current_price: float) -> str:
         """
-        Détermine le biais macro basé sur les swings H1.
+        Détermine le biais macro basé sur les swings H4.
         
         Logique :
             - 2 ou 3 swings sur les 3 derniers → BULLISH ou BEARISH
             - Sinon → NEUTRAL
         """
-
-if len(df_h4) < config.SWING_LOOKBACK:
+        
+        if len(df_h4) < config.SWING_LOOKBACK:
             return "NEUTRAL"
 
         swings_h4 = self.swing_detector.detect_swings(df_h4)
@@ -65,20 +65,20 @@ if len(df_h4) < config.SWING_LOOKBACK:
         return "NEUTRAL"
 
     # ----------------------------------------------------------------------
-    # 🔥 Analyse complète (H1)
+    # 🔥 Analyse complète (H4)
     # ----------------------------------------------------------------------
-    def analyze(self, df_h1: pd.DataFrame) -> Dict:
+    def analyze(self, df_h4: pd.DataFrame) -> Dict:
         """
-        Analyse complète de la structure marché en H1.
+        Analyse complète de la structure marché en H4.
         """
 
-        swings = self.swing_detector.detect_swings(df_h1)
+        swings = self.swing_detector.detect_swings(df_h4)
         swings = self.swing_detector.classify_swings(swings)
 
         trend = self.swing_detector.get_trend(swings)
-        current_price = df_h1["close"].iloc[-1]
+        current_price = df_h4["close"].iloc[-1]
 
-        macro_bias = self.get_macro_bias(df_h1, current_price)
+        macro_bias = self.get_macro_bias(df_h4, current_price)
 
         last_hh = self.swing_detector.get_last_swing_by_type(swings, "HIGH", "HH")
         last_hl = self.swing_detector.get_last_swing_by_type(swings, "LOW", "HL")
@@ -123,12 +123,12 @@ if len(df_h4) < config.SWING_LOOKBACK:
             if range_pct < config.RANGE_MIN_PCT:
                 return False, None, {"reason": f"Range H4 trop étroit ({range_pct:.2f}% < {config.RANGE_MIN_PCT}%)"}
 
-        # Momentum minimal
+        # Momentum minimal (H4 = plus strict)
         if len(df_h4) >= 3:
             r = df_h4.tail(3)
             momentum = (r["high"].max() - r["low"].min()) / r["close"].iloc[-1] * 100
-            if momentum < 0.5:  # H4 = momentum plus large
-                return False, None, {"reason": f"Momentum trop faible ({momentum:.2f}%)"}
+            if momentum < 1.0:  # H4 = momentum plus strict que H1
+                return False, None, {"reason": f"Momentum trop faible ({momentum:.2f}% < 1.0%)"}
 
         # Filtre macro
         if analysis["macro_bias"] == "BEARISH":
@@ -149,9 +149,9 @@ if len(df_h4) < config.SWING_LOOKBACK:
         if not last_hl:
             return False, None, {"reason": "Aucun HL détecté"}
 
-        df_h1_len = len(df_h1)
-        if hasattr(last_hh, "index") and (df_h1_len - 1 - last_hh.index) > 80:
-            return False, None, {"reason": "HH trop ancien (>80h)"}
+        df_h4_len = len(df_h4)
+        if hasattr(last_hh, "index") and (df_h4_len - 1 - last_hh.index) > 20:  # 20 bougies H4 = 80h
+            return False, None, {"reason": "HH trop ancien (>20 bougies H4)"}
 
         current_price = analysis["current_price"]
 
@@ -160,14 +160,14 @@ if len(df_h4) < config.SWING_LOOKBACK:
             return False, None, {"reason": f"Cassure HH non valide : prix {current_price:.4f} < HH {last_hh.price:.4f}"}
 
         breakout_pct = (current_price - last_hh.price) / last_hh.price * 100
-        if breakout_pct < 0.25:
-            return False, None, {"reason": f"Fake breakout ({breakout_pct:.2f}%)"}
+        if breakout_pct < 0.8:  # H4 = breakout plus franc et propre
+            return False, None, {"reason": f"Fake breakout ({breakout_pct:.2f}% < 0.8%)"}
 
-        candle = df_h1.iloc[-1]
+        candle = df_h4.iloc[-1]
         if candle["close"] < candle["open"]:
             return False, None, {"reason": "Bougie breakout rouge"}
 
-        if candle["close"] < last_hh.price * 1.0015:
+        if candle["close"] < last_hh.price * 1.003:  # H4 = marge plus large (0.3% au lieu de 0.15%)
             return False, None, {"reason": "Clôture trop faible après cassure"}
 
         # Position dans la bougie
@@ -177,10 +177,10 @@ if len(df_h4) < config.SWING_LOOKBACK:
             if pos < 40:
                 return False, None, {"reason": f"Breakout pas propre ({pos:.1f}% dans bougie)"}
 
-        # Distance HH-HL minimale
+        # Distance HH-HL minimale (H4 = structures plus larges)
         dist = abs(last_hh.price - last_hl.price) / last_hl.price * 100
-        if dist < 0.35:
-            return False, None, {"reason": f"Structure trop serrée ({dist:.2f}% < 0.35%)"}
+        if dist < 1.0:  # H4 = distances plus grandes
+            return False, None, {"reason": f"Structure trop serrée ({dist:.2f}% < 1.0%)"}
 
         stop_loss = last_hl.price
         stop_pct = abs(current_price - stop_loss) / current_price * 100
@@ -207,8 +207,8 @@ if len(df_h4) < config.SWING_LOOKBACK:
         if len(df_h4) >= 3:
             r = df_h4.tail(3)
             momentum = (r["high"].max() - r["low"].min()) / r["close"].iloc[-1] * 100
-            if momentum < 0.5:  # H4 = momentum plus large
-                return False, None, {"reason": f"Momentum insuffisant ({momentum:.2f}%)"}
+            if momentum < 1.0:  # H4 = momentum plus strict
+                return False, None, {"reason": f"Momentum insuffisant ({momentum:.2f}% < 1.0%)"}
 
         if analysis["macro_bias"] != "BEARISH":
             return False, None, {"reason": f"Macro {analysis['macro_bias']} — aucun short autorisé"}
@@ -224,9 +224,9 @@ if len(df_h4) < config.SWING_LOOKBACK:
         if not last_lh:
             return False, None, {"reason": "Aucun LH détecté"}
 
-        df_len = len(df_h1)
-        if hasattr(last_ll, "index") and (df_len - 1 - last_ll.index) > 80:
-            return False, None, {"reason": "LL trop ancien"}
+        df_h4_len = len(df_h4)
+        if hasattr(last_ll, "index") and (df_h4_len - 1 - last_ll.index) > 20:  # 20 bougies H4 = 80h
+            return False, None, {"reason": "LL trop ancien (>20 bougies H4)"}
 
         current_price = analysis["current_price"]
 
@@ -234,10 +234,10 @@ if len(df_h4) < config.SWING_LOOKBACK:
             return False, None, {"reason": "Pas de cassure LL"}
 
         breakout_pct = (last_ll.price - current_price) / last_ll.price * 100
-        if breakout_pct < 0.25:
-            return False, None, {"reason": "Fake breakout"}
+        if breakout_pct < 0.8:  # H4 = breakout plus franc
+            return False, None, {"reason": "Fake breakout (<0.8%)"}
 
-        candle = df_h1.iloc[-1]
+        candle = df_h4.iloc[-1]
         if candle["close"] > candle["open"]:
             return False, None, {"reason": "Breakout short bougie verte"}
 
@@ -248,8 +248,8 @@ if len(df_h4) < config.SWING_LOOKBACK:
                 return False, None, {"reason": "Clôture pas assez basse dans la bougie"}
 
         dist = abs(last_lh.price - last_ll.price) / last_ll.price * 100
-        if dist < 0.45:
-            return False, None, {"reason": "Structure short trop serrée"}
+        if dist < 1.0:  # H4 = distances plus grandes
+            return False, None, {"reason": "Structure short trop serrée (<1.0%)"}
 
         stop_loss = last_lh.price
         stop_pct = abs(stop_loss - current_price) / current_price * 100

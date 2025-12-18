@@ -329,14 +329,22 @@ class RiskManager:
         else:
             return current_price >= position.current_sl
 
-    def close_position(self, position: Position, exit_price: float, reason: str):
+    def close_position(self, position: Position, exit_price: float, reason: str, fees: float = 0.0, exit_time: datetime = None):
         """
         Ferme une position et met à jour le capital
+        
+        Args:
+            position: Position à fermer
+            exit_price: Prix de sortie (déjà ajusté avec slippage)
+            reason: Raison de la fermeture
+            fees: Frais totaux à déduire du PnL (défaut: 0.0)
+            exit_time: Heure de sortie (backtest). Si None → datetime.now()
         """
-        pnl = position.get_pnl(exit_price)
+        pnl_gross = position.get_pnl(exit_price)
+        pnl = pnl_gross - fees  # ✅ PnL net après fees
         profit_r = position.get_profit_r(exit_price)
 
-        self.current_capital += pnl
+        self.current_capital += pnl  # ✅ Capital mis à jour avec PnL net
 
         trade = {
             "symbol": position.symbol,
@@ -345,11 +353,12 @@ class RiskManager:
             "exit_price": exit_price,
             "quantity": position.quantity,
             "entry_time": position.entry_time,
-            "exit_time": datetime.now(),
-            "pnl": pnl,
+            "exit_time": exit_time or datetime.now(),  # ✅ Temps cohérent backtest
+            "pnl": pnl,  # ✅ PnL net (après fees)
             "profit_r": profit_r,
             "reason": reason,
             "zero_risk_activated": position.zero_risk_activated,
+            "fees": fees,  # ✅ Traçabilité
         }
 
         self.closed_trades.append(trade)

@@ -1,6 +1,6 @@
 """
 Backtest du bot Dow Theory sur données historiques
-Teste la stratégie sur 2-3 ans pour valider les performances (H1)
+Teste la stratégie sur 2-3 ans pour valider les performances (H4)
 """
 
 import ccxt
@@ -54,7 +54,7 @@ def compute_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
 
 
 class BacktestEngine:
-    """Moteur de backtest pour la stratégie Dow Theory (H1)"""
+    """Moteur de backtest pour la stratégie Dow Theory (H4)"""
 
     def __init__(
         self,
@@ -83,6 +83,12 @@ class BacktestEngine:
         self.initial_capital = initial_capital
         self.start_date = start_date
         self.end_date = end_date or datetime.now().strftime("%Y-%m-%d")
+        
+        # 🎯 STRATÉGIE OPTIMALE Dow Theory H4 :
+        # - Backtest BTC seul d'abord (meilleure liquidité)
+        # - Puis BTC + ETH (2 majors)
+        # - Puis ajouter BNB si perfs solides
+        # - Alts (SOL, AVAX...) uniquement si macro bullish (Dow n'aime pas les ranges)
         self.pairs = pairs or PAIRS
         self.risk_percent = risk_percent or RISK_PERCENT
         self.trigger_zero_r = trigger_zero_r or TRIGGER_ZERO_R
@@ -115,7 +121,7 @@ class BacktestEngine:
     # ------------------------------------------------------------------ #
     def fetch_historical_data(self, pair: str) -> pd.DataFrame:
         """
-        Récupère les données historiques H1
+        Récupère les données historiques H4
         """
         logger.info(f"📥 Téléchargement {pair} en H4...")
 
@@ -159,7 +165,7 @@ class BacktestEngine:
     # ------------------------------------------------------------------ #
     def run_backtest(self) -> Dict:
         """
-        Execute le backtest complet (H1)
+        Execute le backtest complet (H4)
         """
         logger.info("=" * 70)
         logger.info("🚀 BACKTEST DOW THEORY (H4)")
@@ -169,13 +175,13 @@ class BacktestEngine:
         logger.info(f"⚙️ Risque: {self.risk_percent}% | Zero R: {self.trigger_zero_r}R → {self.lock_profit_r}R")
         logger.info("=" * 70)
 
-        # Télécharger toutes les données H1
+        # Télécharger toutes les données H4
         historical_data: Dict[str, pd.DataFrame] = {}
         for pair in self.pairs:
             try:
-                df_h1 = self.fetch_historical_data(pair)
-                if not df_h1.empty:
-                    historical_data[pair] = df_h1
+                df_h4 = self.fetch_historical_data(pair)
+                if not df_h4.empty:
+                    historical_data[pair] = df_h4
             except Exception as e:
                 logger.error(f"❌ Impossible de charger {pair}: {e}")
                 continue
@@ -192,10 +198,11 @@ class BacktestEngine:
 
         logger.info(f"📅 Simulation: {min_date} → {max_date}")
 
-        lookback_hours = 600 * 4  # 600 bougies H4 = 2400h = 100 jours
+        lookback_bars = 150  # 150 bougies H4 = 600h = 25 jours (optimal pour EMA300)
+        lookback_hours = lookback_bars * 4
         current_time = min_date + timedelta(hours=lookback_hours)
 
-        logger.info(f"⏭️ Démarrage simulation après {lookback_hours // 4} bougies H4 de lookback : {current_time}")
+        logger.info(f"⏭️ Démarrage simulation après {lookback_bars} bougies H4 de lookback : {current_time}")
 
         h4_count = 0
 
@@ -256,29 +263,29 @@ class BacktestEngine:
 
     def _check_entry_signal(self, pair: str, current_time: datetime, data: pd.DataFrame):
         """
-        Vérifie un signal d’entrée (H1) pour une paire donnée.
+        Vérifie un signal d'entrée (H4) pour une paire donnée.
         """
 
         # Récupère toutes les bougies jusqu'à current_time
-        df_h1 = data[data["datetime"] <= current_time].copy()
+        df_h4 = data[data["datetime"] <= current_time].copy()
 
         # Assez d'historique ?
-        min_len = max(200, 200 + 14)  # pour EMA200 + ATR14
-        if len(df_h1) < min_len:
+        min_len = max(300, 300 + 14)  # pour EMA300 + ATR14
+        if len(df_h4) < min_len:
             return
 
-        # Calcul indicateurs (EMA, ATR) sur tout l'historique dispo
-        df_h1["ema50"] = df_h1["close"].ewm(span=50, adjust=False).mean()
-        df_h1["ema200"] = df_h1["close"].ewm(span=200, adjust=False).mean()
-        df_h1["atr14"] = compute_atr(df_h1, period=14)
+        # Calcul indicateurs (EMA, ATR) - H4 = périodes plus longues
+        df_h4["ema100"] = df_h4["close"].ewm(span=100, adjust=False).mean()
+        df_h4["ema300"] = df_h4["close"].ewm(span=300, adjust=False).mean()
+        df_h4["atr14"] = compute_atr(df_h4, period=14)
 
-        last = df_h1.iloc[-1]
+        last = df_h4.iloc[-1]
         current_price = float(last["close"])
-        ema50 = float(last["ema50"])
-        ema200 = float(last["ema200"])
+        ema100 = float(last["ema100"])
+        ema300 = float(last["ema300"])
         atr = float(last["atr14"])
 
-        if np.isnan(ema50) or np.isnan(ema200) or np.isnan(atr):
+        if np.isnan(ema100) or np.isnan(ema300) or np.isnan(atr):
             return
 
         # Filtre volatilité : ignore si ATR trop faible (marché endormi)
@@ -288,7 +295,7 @@ class BacktestEngine:
             return
 
         # Analyse de structure (Dow Theory)
-        analysis = self.structure_analyzer.analyze(df_h1)
+        analysis = self.structure_analyzer.analyze(df_h4)
         if not analysis:
             return
 
@@ -297,27 +304,27 @@ class BacktestEngine:
         trend = analysis.get("trend")
         
         # Extraction des niveaux pour logs trade (stockés pour _enter_trade)
-        last_hh = analysis.get("last_hh")
-        last_hl = analysis.get("last_hl")
-        last_lh = analysis.get("last_lh")
-        last_ll = analysis.get("last_ll")
+        last_hh = analysis.get("last_HH")  # IMPORTANT: Majuscules!
+        last_hl = analysis.get("last_HL")
+        last_lh = analysis.get("last_LH")
+        last_ll = analysis.get("last_LL")
 
         # ----------------------------- #
-        # SWING LONG (trend following)
+        # SWING LONG (trend following) - H4
         # ----------------------------- #
         long_ok = (
             macro_bias == "BULLISH"
             and trend == "UPTREND"
-            and current_price > ema50 > ema200
+            and current_price > ema100 > ema300  # H4: EMA100/300
         )
 
         # ----------------------------- #
-        # SWING SHORT (trend following)
+        # SWING SHORT (trend following) - H4
         # ----------------------------- #
         short_ok = (
             macro_bias == "BEARISH"
             and trend == "DOWNTREND"
-            and current_price < ema50 < ema200
+            and current_price < ema100 < ema300  # H4: EMA100/300
         )
 
         # Mode HYBRID : swing prioritaire, avec gestion active du risque (zero-risk + trailing)
@@ -511,7 +518,7 @@ class BacktestEngine:
     # ------------------------------------------------------------------ #
     def _update_positions(self, current_time: datetime, historical_data: Dict[str, pd.DataFrame]):
         """
-        Met à jour trailing SL, zero risk, et ferme les positions si nécessaire (H1)
+        Met à jour trailing SL, zero risk, et ferme les positions si nécessaire (H4)
         """
 
         positions_to_close = []
@@ -540,6 +547,12 @@ class BacktestEngine:
 
                 # MAJ via RiskManager (zero-risk, trailing, etc.)
                 self.risk_manager.update_position(position, current_price)
+                
+                # Vérification sortie structurelle (Dow Theory invalidation) - AVANT stop
+                analysis = self.structure_analyzer.analyze(df_pair)
+                if analysis and self.structure_analyzer.check_trend_invalidation(analysis, position.side):
+                    positions_to_close.append((pair, position, current_price, current_time))
+                    continue  # Ne pas vérifier le stop si structure invalidée
 
                 # Vérification du stop
                 if position.side == "LONG" and current_low <= position.current_sl:
@@ -547,10 +560,17 @@ class BacktestEngine:
                 elif position.side == "SHORT" and current_high >= position.current_sl:
                     positions_to_close.append((pair, position, position.current_sl, current_time))
 
-        # Clôture des positions dont le stop est touché
+        # Clôture des positions dont le stop est touché ou structure invalidée
         for pair, position, exit_price, exit_time in positions_to_close:
-            pnl = position.get_pnl(exit_price)
-            r_mul = position.get_profit_r(exit_price)
+            # Application des frais et slippage (CRITIQUE)
+            fee = abs(position.quantity * exit_price) * config.TAKER_FEE
+            slippage_amount = exit_price * (config.SLIPPAGE_PCT / 100)
+            
+            # Ajuster prix de sortie selon le côté
+            if position.side == "LONG":
+                exit_price_adj = exit_price - slippage_amount  # Slippage défavorable
+            else:
+                exit_price_adj = exit_price + slippage_amount  # Slippage défavorable
 
             # Retirer d'abord des positions ouvertes
             if pair in self.risk_manager.positions:
@@ -560,14 +580,19 @@ class BacktestEngine:
                 if not self.risk_manager.positions[pair]:
                     del self.risk_manager.positions[pair]
 
-            # Fermer via RiskManager (mise à jour capital + historique)
-            self.risk_manager.close_position(position, exit_price, "stop_hit")
+            # ✅ Fermer via RiskManager avec fees et exit_time (source unique de vérité)
+            self.risk_manager.close_position(position, exit_price_adj, "stop_hit", fees=fee, exit_time=exit_time)
+            
+            # ✅ Récupérer le PnL/R depuis le trade fermé (évite double comptage)
+            last_trade = self.risk_manager.closed_trades[-1]
+            pnl = last_trade["pnl"]  # ✅ PnL net (déjà déduit des fees)
+            r_mul = last_trade["profit_r"]
 
             trade = {
                 "pair": pair,
                 "side": position.side,
                 "entry_price": position.entry_price,
-                "exit_price": exit_price,
+                "exit_price": exit_price_adj,
                 "quantity": position.quantity,
                 "pnl": pnl,
                 "r_multiple": r_mul,
@@ -575,13 +600,15 @@ class BacktestEngine:
                 "exit_time": exit_time,
                 "duration_hours": (exit_time - position.entry_time).total_seconds() / 3600,
                 "zero_risk_activated": position.zero_risk_activated,
+                "fees": fee,
+                "slippage": slippage_amount,
             }
 
             self.trades.append(trade)
 
             logger.info(
-                f"📊 CLOSE {pair} {position.side} @ {exit_price:.4f} | "
-                f"PnL {pnl:+.2f} | {r_mul:+.2f}R | Capital {self.risk_manager.current_capital:.2f}"
+                f"📊 CLOSE {pair} {position.side} @ {exit_price_adj:.4f} | "
+                f"PnL {pnl:+.2f} (fees: {fee:.2f}) | {r_mul:+.2f}R | Capital {self.risk_manager.current_capital:.2f}"
             )
 
     # ------------------------------------------------------------------ #
@@ -679,7 +706,7 @@ class BacktestEngine:
             return
 
         print("\n" + "=" * 70)
-        print("📊 RÉSULTATS DU BACKTEST (H1)")
+        print("📊 RÉSULTATS DU BACKTEST (H4)")
         print("=" * 70)
 
         print("\n💰 PERFORMANCE:")
@@ -778,10 +805,10 @@ class BacktestEngine:
 
 
 def main():
-    """Exécution du backtest (H1)"""
+    """Exécution du backtest (H4)"""
 
     print("\n" + "=" * 70)
-    print("🔬 BACKTEST BOT DOW THEORY — H1 (HYBRID MODE)")
+    print("🔬 BACKTEST BOT DOW THEORY — H4 (HYBRID MODE)")
     print("=" * 70)
 
     backtest = BacktestEngine(
